@@ -1,0 +1,60 @@
+{
+  "name": "innledger",
+  "productName": "InnLedger",
+  "version": "1.0.0",
+  "description": "InnLedger - room bookings, GST invoices and sales manager for small hotels",
+  "author": "Mohd-ali1234",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --publish never",
+    "release": "electron-builder --win --publish always"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.innledger.app",
+    "productName": "InnLedger",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "package.json",
+      "build/icon.png"
+    ],
+    "extraResources": [
+      {
+        "from": "../backend/dist/innledger-server.exe",
+        "to": "server/innledger-server.exe"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "shortcutName": "InnLedger",
+      "artifactName": "InnLedger-Setup-${version}.${ext}"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Mohd-ali1234",
+        "repo": "InnLedger",
+        "releaseType": "release"
+      }
+    ]
+  }
+}

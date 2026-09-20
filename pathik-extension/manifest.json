@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Rooms Booking → Pathik autofill",
+  "version": "1.0.0",
+  "description": "Opens Pathik's Add Guest form with a booking already filled in. Never submits the form.",
+  "permissions": ["storage"],
+  "host_permissions": ["https://pathik.guru/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://localhost:5173/*", "http://127.0.0.1:5173/*"],
+      "js": ["bridge.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["https://pathik.guru/dashboard/add*"],
+      "js": ["fill.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["page-fill.js"],
+      "matches": ["https://pathik.guru/*"]
+    }
+  ]
+}
