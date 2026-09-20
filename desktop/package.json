@@ -1,7 +1,7 @@
 {
   "name": "innledger",
   "productName": "InnLedger",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "InnLedger - room bookings, GST invoices and sales manager for small hotels",
   "author": "Mohd-ali1234",
   "main": "main.js",
