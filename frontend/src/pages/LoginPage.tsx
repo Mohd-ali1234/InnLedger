@@ -87,11 +87,6 @@ export default function LoginPage() {
               Sign in
             </Button>
           </form>
-
-          <div className="mt-6 rounded-lg border border-dashed border-border bg-slate-50 px-4 py-3 text-center text-xs text-muted-foreground">
-            Demo credentials — <span className="font-medium text-foreground">admin</span> /{" "}
-            <span className="font-medium text-foreground">admin123</span>
-          </div>
         </div>
       </div>
     </div>
