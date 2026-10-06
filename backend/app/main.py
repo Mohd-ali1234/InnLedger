@@ -3,12 +3,14 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.database.session import Base, engine
-from app.database.migrate import add_missing_columns
+from app.database.migrate import add_missing_columns, backfill_booking_rooms, relax_booking_constraints
 from app.routers import auth, bookings, dashboard, rooms, settings as hotel_settings
 
 # Create tables on startup. For schema evolution use Alembic migrations (see alembic/).
 Base.metadata.create_all(bind=engine)
 add_missing_columns(engine)
+relax_booking_constraints(engine)
+backfill_booking_rooms(engine)
 
 app = FastAPI(title=settings.PROJECT_NAME, version="1.0.0")
 

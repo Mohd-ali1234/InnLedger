@@ -32,7 +32,7 @@ export function RecentBookings({ bookings }: { bookings: Booking[] }) {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-foreground">{b.guest_name}</p>
                   <p className="truncate text-xs text-muted-foreground">
-                    Room {b.room.room_number} · {formatDate(b.check_in)} → {formatDate(b.check_out)}
+                    Room {b.room_numbers} · {formatDate(b.check_in)}{b.check_out ? ` → ${formatDate(b.check_out)}` : " · staying"}
                   </p>
                 </div>
                 <BookingStatusBadge status={b.status} />

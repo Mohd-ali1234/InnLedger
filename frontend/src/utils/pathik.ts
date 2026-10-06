@@ -312,7 +312,7 @@ export function mapBookingToPathik(
       source: "guess",
       kind: "text",
     },
-    { name: "email", label: "Email Address", value: booking.email, source: "exact", kind: "text" },
+    { name: "email", label: "Email Address", value: booking.email ?? "", source: "exact", kind: "text" },
 
     {
       name: "room_no",
@@ -331,7 +331,7 @@ export function mapBookingToPathik(
     {
       name: "checkout_date",
       label: "Checkout Date",
-      value: formatDay(booking.check_out, dateFormat),
+      value: formatDay(booking.check_out ?? booking.check_in, dateFormat),
       source: "exact",
       kind: "text",
     },

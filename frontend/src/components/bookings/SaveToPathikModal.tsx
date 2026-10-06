@@ -150,7 +150,7 @@ export function SaveToPathikModal({ open, booking, onClose, justCreated }: SaveT
           </p>
           <p className="text-muted-foreground">
             Room {booking.room.room_number} · {formatDate(booking.check_in)} →{" "}
-            {formatDate(booking.check_out)}
+            {formatDate(booking.check_out ?? booking.check_in)}
           </p>
         </div>
 

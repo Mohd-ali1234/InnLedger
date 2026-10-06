@@ -13,6 +13,7 @@ from app.core.security import hash_password
 from app.database.session import Base, SessionLocal, engine
 from app.models.admin import Admin
 from app.models.booking import Booking
+from app.models.booking_room import BookingRoom
 from app.models.enums import BookingStatus, RoomStatus
 from app.models.room import Room
 
@@ -100,8 +101,7 @@ def _seed_bookings(db: Session, rooms: list[Room]) -> None:
         if room is None:
             continue
         check_in = today + timedelta(days=offset)
-        db.add(
-            Booking(
+        booking = Booking(
                 room_id=room.id,
                 guest_name=guest,
                 phone=phone,
@@ -110,8 +110,10 @@ def _seed_bookings(db: Session, rooms: list[Room]) -> None:
                 check_out=check_in + timedelta(days=nights),
                 guest_count=guests,
                 status=status,
+                rate=room.price,
             )
-        )
+        booking.rooms = [BookingRoom(room_id=room.id, rate=room.price)]
+        db.add(booking)
         count += 1
     db.commit()
     print(f"Seeded {count} bookings.")

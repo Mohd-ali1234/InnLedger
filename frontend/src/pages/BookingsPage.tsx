@@ -3,9 +3,11 @@ import {
   CalendarCheck,
   CalendarPlus,
   Eye,
+  LogOut,
   MoreHorizontal,
   FileText,
   Pencil,
+  Printer,
   Search,
   SearchX,
   Trash2,
@@ -22,9 +24,16 @@ import { DropdownMenu, MenuItem } from "@/components/ui/DropdownMenu";
 import { BookingStatusBadge } from "@/components/StatusBadge";
 import { BookingFormModal } from "@/components/bookings/BookingFormModal";
 import { BookingDetailsModal } from "@/components/bookings/BookingDetailsModal";
+import { CheckoutModal } from "@/components/bookings/CheckoutModal";
 import { BOOKING_STATUSES } from "@/utils/constants";
-import { formatDate, initials, nightsBetween } from "@/utils/format";
-import { useBookings, useCancelBooking, useDeleteBooking, useOpenInvoice } from "@/hooks/useBookings";
+import { formatDate } from "@/utils/format";
+import {
+  useBookings,
+  useCancelBooking,
+  useDeleteBooking,
+  useOpenInvoice,
+  usePrintInvoice,
+} from "@/hooks/useBookings";
 import type { Booking, BookingStatus } from "@/types";
 
 const STAT_TABS: { value: BookingStatus | "all"; label: string }[] = [
@@ -43,7 +52,9 @@ export default function BookingsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Booking | null>(null);
   const openInvoice = useOpenInvoice();
+  const printInvoice = usePrintInvoice();
   const [viewing, setViewing] = useState<Booking | null>(null);
+  const [checkingOut, setCheckingOut] = useState<Booking | null>(null);
   const [cancelling, setCancelling] = useState<Booking | null>(null);
   const [deleting, setDeleting] = useState<Booking | null>(null);
 
@@ -61,8 +72,10 @@ export default function BookingsPage() {
       const matchesSearch =
         !q ||
         b.guest_name.toLowerCase().includes(q) ||
-        b.email.toLowerCase().includes(q) ||
-        b.room.room_number.toLowerCase().includes(q);
+        (b.email ?? "").toLowerCase().includes(q) ||
+        b.phone.toLowerCase().includes(q) ||
+        b.room_numbers.toLowerCase().includes(q) ||
+        String(b.id) === q.replace(/^#/, "");
       const matchesStatus = statusFilter === "all" || b.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
@@ -127,7 +140,7 @@ export default function BookingsPage() {
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             className="pl-9"
-            placeholder="Search by guest name, email, or room number…"
+            placeholder="Search by bill no., guest name, phone, email, or room…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -168,9 +181,10 @@ export default function BookingsPage() {
       ) : (
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] border-collapse text-sm">
+            <table className="w-full min-w-[900px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-border bg-slate-50/80 text-left">
+                  <Th>Bill No.</Th>
                   <Th>Guest</Th>
                   <Th>Room</Th>
                   <Th>Check-in</Th>
@@ -188,31 +202,49 @@ export default function BookingsPage() {
                     onClick={() => setViewing(b)}
                     style={{ cursor: "pointer" }}
                   >
+                    <td className="px-4 py-3 font-medium tabular-nums text-foreground">{b.id}</td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600">
-                          {initials(b.guest_name)}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="truncate font-medium text-foreground">{b.guest_name}</p>
-                          <p className="truncate text-xs text-muted-foreground">{b.email}</p>
-                        </div>
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-foreground">{b.guest_name}</p>
+                        <p className="truncate text-xs text-muted-foreground">{b.phone}</p>
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <p className="font-medium text-foreground">Room {b.room.room_number}</p>
-                      <p className="text-xs text-muted-foreground">{b.room.room_name}</p>
+                      <p className="font-medium text-foreground">
+                        {b.rooms.length > 1 ? "Rooms" : "Room"} {b.room_numbers}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {b.rooms.length > 1 ? `${b.rooms.length} rooms` : b.room.room_name}
+                      </p>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{formatDate(b.check_in)}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{formatDate(b.check_out)}</td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {b.check_out ? (
+                        <>
+                          {formatDate(b.check_out)}
+                          <span className="block text-xs">{b.check_out_time}</span>
+                        </>
+                      ) : (
+                        <span className="text-xs italic">
+                          {b.status === "checked_in" || b.status === "confirmed" ? "Not yet" : "—"}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-center tabular-nums text-muted-foreground">
-                      {nightsBetween(b.check_in, b.check_out)}
+                      {b.nights}
+                      {!b.check_out && b.status === "checked_in" && <span className="text-xs">+</span>}
                     </td>
                     <td className="px-4 py-3">
                       <BookingStatusBadge status={b.status} />
                     </td>
                     <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex justify-end">
+                      <div className="flex items-center justify-end gap-2">
+                        {(b.status === "checked_in" || b.status === "confirmed") && (
+                          <Button variant="secondary" size="sm" onClick={() => setCheckingOut(b)}>
+                            <LogOut />
+                            Check out
+                          </Button>
+                        )}
                         <DropdownMenu
                           trigger={
                             <Button
@@ -231,8 +263,26 @@ export default function BookingsPage() {
                           <MenuItem icon={<Pencil />} onClick={() => openEdit(b)}>
                             Edit
                           </MenuItem>
-                          <MenuItem icon={<FileText />} onClick={() => openInvoice.mutate(b.id)}>
-                            Invoice (PDF)
+                          <MenuItem
+                            icon={<LogOut />}
+                            disabled={b.status !== "checked_in" && b.status !== "confirmed"}
+                            onClick={() => setCheckingOut(b)}
+                          >
+                            Check out
+                          </MenuItem>
+                          <MenuItem
+                            icon={<FileText />}
+                            disabled={b.status !== "checked_out"}
+                            onClick={() => openInvoice.mutate(b.id)}
+                          >
+                            View invoice
+                          </MenuItem>
+                          <MenuItem
+                            icon={<Printer />}
+                            disabled={b.status !== "checked_out"}
+                            onClick={() => printInvoice.mutate(b.id)}
+                          >
+                            Print invoice
                           </MenuItem>
                           <MenuItem
                             icon={<XCircle />}
@@ -242,8 +292,13 @@ export default function BookingsPage() {
                           >
                             Cancel booking
                           </MenuItem>
-                          <MenuItem icon={<Trash2 />} variant="danger" onClick={() => setDeleting(b)}>
-                            Delete
+                          <MenuItem
+                            icon={<Trash2 />}
+                            variant="danger"
+                            disabled={b.invoice_printed}
+                            onClick={() => setDeleting(b)}
+                          >
+                            {b.invoice_printed ? "Delete (bill printed)" : "Delete"}
                           </MenuItem>
                         </DropdownMenu>
                       </div>
@@ -270,10 +325,12 @@ export default function BookingsPage() {
         onEdit={openEdit}
       />
 
+      <CheckoutModal booking={checkingOut} onClose={() => setCheckingOut(null)} />
+
       <ConfirmDialog
         open={Boolean(cancelling)}
         title="Cancel booking"
-        description={`Cancel the booking for ${cancelling?.guest_name} in Room ${cancelling?.room.room_number}? The room will be released if it was occupied.`}
+        description={`Cancel the booking for ${cancelling?.guest_name} in Room ${cancelling?.room_numbers}? The room will be released if it was occupied.`}
         confirmLabel="Cancel booking"
         isLoading={cancelBooking.isPending}
         onConfirm={() =>
@@ -316,7 +373,6 @@ function TableSkeleton() {
       <div className="divide-y divide-border">
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="flex items-center gap-4 px-4 py-4">
-            <Skeleton className="size-9 rounded-full" />
             <div className="flex-1 space-y-2">
               <Skeleton className="h-4 w-40" />
               <Skeleton className="h-3 w-56" />

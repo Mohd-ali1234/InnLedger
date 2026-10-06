@@ -51,6 +51,20 @@ def amount_in_words(value: float) -> str:
     return words + " Only"
 
 
+def _allocate(total: float, weights: list[float]) -> list[float]:
+    """Split `total` across `weights` proportionally, to the paisa, summing exactly to `total`."""
+    if not weights:
+        return []
+    weight_sum = sum(weights)
+    if weight_sum <= 0:
+        shares = [0.0] * len(weights)
+        shares[-1] = round(total, 2)
+        return shares
+    shares = [round(total * w / weight_sum, 2) for w in weights[:-1]]
+    shares.append(round(total - sum(shares), 2))
+    return shares
+
+
 def _money(v: float) -> str:
     return f"{v:,.2f}"
 
@@ -95,7 +109,7 @@ def build_invoice_pdf(booking: Booking, hotel: HotelSettings) -> bytes:
     story.append(Spacer(1, 2 * mm))
 
     arrival = _dt(booking.check_in, booking.check_in_time)
-    departure = _dt(booking.check_out, booking.check_out_time)
+    departure = _dt(booking.effective_check_out, booking.check_out_time)
 
     def label(t: str) -> Paragraph:
         return _p(t, textColor=colors.HexColor("#444444"))
@@ -132,7 +146,7 @@ def build_invoice_pdf(booking: Booking, hotel: HotelSettings) -> bytes:
             [label("Bill Date :"), _p(f"<b>{departure:%d/%m/%Y}</b>")],
             [label("Bill No :"), _p(f"<b>{booking.id}</b>")],
             [label("Register No :"), _p(f"<b>{booking.id}</b>")],
-            [label("Room No :"), _p(f"<b>{e(booking.room.room_number)}</b>")],
+            [label("Room No :"), _p(f"<b>{e(booking.room_numbers)}</b>")],
             [label("No. Person :"), _p(f"<b>{booking.guest_count}</b>")],
         ],
         lab,
@@ -175,7 +189,26 @@ def build_invoice_pdf(booking: Booking, hotel: HotelSettings) -> bytes:
     def cell(t: str) -> Paragraph:
         return _p(t, size=8.5, alignment=TA_CENTER)
 
-    gst_total = booking.cgst_amount + booking.sgst_amount
+    # One row per room. The booking-level discount and tax are split in proportion to each
+    # room's amount, with the rounding remainder on the last row so the rows add up exactly.
+    lines = booking.rooms
+    nights = booking.nights
+    amounts = [round(r.nightly_rate * nights, 2) for r in lines]
+    discounts = _allocate(booking.discount, amounts)
+    taxables = [round(a - d, 2) for a, d in zip(amounts, discounts)]
+    cgsts = _allocate(booking.cgst_amount, taxables)
+    sgsts = _allocate(booking.sgst_amount, taxables)
+
+    # Guests per room: at least one each, extra guests filled in up to each room's capacity.
+    persons = [1] * len(lines)
+    spare = max(0, booking.guest_count - len(lines))
+    for i, line in enumerate(lines):
+        add = min(spare, max(0, line.capacity - 1))
+        persons[i] += add
+        spare -= add
+    if persons:
+        persons[-1] += spare
+
     room_rows = [
         [
             hd("Room<br/>No"),
@@ -189,19 +222,23 @@ def build_invoice_pdf(booking: Booking, hotel: HotelSettings) -> bytes:
             hd("GST<br/>C GST / S GST"),
             hd("Total<br/>Amount"),
         ],
-        [
-            cell(e(booking.room.room_number)),
-            cell(f"{arrival:%d/%m/%Y %H:%M}<br/>{departure:%d/%m/%Y %H:%M}"),
-            cell(str(booking.guest_count)),
-            cell(_money(booking.effective_rate)),
-            cell(str(booking.nights)),
-            cell(_money(booking.amount)),
-            cell(_money(booking.discount)),
-            cell(_money(booking.taxable)),
-            cell(f"<b>{_money(gst_total)}</b><br/>{_money(booking.cgst_amount)} / {_money(booking.sgst_amount)}"),
-            cell(f"<b>{_money(booking.total)}</b>"),
-        ],
     ]
+    for i, line in enumerate(lines):
+        gst_i = round(cgsts[i] + sgsts[i], 2)
+        room_rows.append(
+            [
+                cell(e(line.room_number)),
+                cell(f"{arrival:%d/%m/%Y %H:%M}<br/>{departure:%d/%m/%Y %H:%M}"),
+                cell(str(persons[i])),
+                cell(_money(line.nightly_rate)),
+                cell(str(nights)),
+                cell(_money(amounts[i])),
+                cell(_money(discounts[i])),
+                cell(_money(taxables[i])),
+                cell(f"<b>{_money(gst_i)}</b><br/>{_money(cgsts[i])} / {_money(sgsts[i])}"),
+                cell(f"<b>{_money(taxables[i] + gst_i)}</b>"),
+            ]
+        )
     cw = [15, 33, 10, 17, 13, 19, 14, 20, 27, 19]
     scale = width / sum(cw)
     room_tbl = Table(room_rows, colWidths=[c * scale for c in cw])
@@ -237,10 +274,18 @@ def build_invoice_pdf(booking: Booking, hotel: HotelSettings) -> bytes:
         [sv("<b>SERVICES</b>"), sv("<b>Amount</b>"), sv("<b>C GST</b>"), sv("<b>S GST</b>"),
          sv("<b>Total Services Amt</b>", alignment=TA_RIGHT)]
     ]
-    for name in ("Food &amp; Beverages", "Laundry", "Miscellaneous Exp.", "Taxi", "Extra Person :"):
-        svc_rows.append([sv(name), sv("0.00"), sv("0.00"), sv("0.00"), sv("0.00", alignment=TA_RIGHT)])
+    for label, amount, cgst_amt, sgst_amt in booking.service_lines:
+        svc_rows.append(
+            [
+                sv(e(label)),
+                sv(_money(amount)),
+                sv(_money(cgst_amt)),
+                sv(_money(sgst_amt)),
+                sv(_money(amount + cgst_amt + sgst_amt), alignment=TA_RIGHT),
+            ]
+        )
     svc_rows.append(["", "", "", sv("<b>Total Services Amount :</b>", alignment=TA_RIGHT),
-                     sv("<b>0.00</b>", alignment=TA_RIGHT)])
+                     sv(f"<b>{_money(booking.services_total)}</b>", alignment=TA_RIGHT)])
     svc = Table(svc_rows, colWidths=[width * f for f in (0.30, 0.15, 0.15, 0.22, 0.18)])
     svc.setStyle(
         TableStyle(
@@ -260,15 +305,15 @@ def build_invoice_pdf(booking: Booking, hotel: HotelSettings) -> bytes:
     left_txt = [
         _p(f"GST IN : {e(hotel.gst_number)}", font="Helvetica-Bold"),
         _p(f"HSN / SAC CODE : {e(hotel.hsn_code)}", font="Helvetica-Bold"),
-        _p(f"Rs. {amount_in_words(booking.total)}", font="Helvetica-Bold"),
+        _p(f"Rs. {amount_in_words(booking.grand_total)}", font="Helvetica-Bold"),
     ]
     inner_w = width * 0.4 - 16  # leave room for the outer cell's padding so nothing touches the border
     right_tbl = Table(
         [
-            [sv("<b>Total Amount :</b>", alignment=TA_RIGHT), sv(_money(booking.total), alignment=TA_RIGHT)],
+            [sv("<b>Total Amount :</b>", alignment=TA_RIGHT), sv(_money(booking.grand_total), alignment=TA_RIGHT)],
             [sv("Less :- Advance", alignment=TA_RIGHT), sv("0.00", alignment=TA_RIGHT)],
             [sv("<b>Amount Receivable</b>", alignment=TA_RIGHT),
-             sv(f"<b>{_money(booking.total)}</b>", alignment=TA_RIGHT)],
+             sv(f"<b>{_money(booking.grand_total)}</b>", alignment=TA_RIGHT)],
         ],
         colWidths=[inner_w * 0.62, inner_w * 0.38],
     )

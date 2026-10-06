@@ -32,3 +32,7 @@ class Room(Base):
     bookings: Mapped[list["Booking"]] = relationship(  # noqa: F821
         "Booking", back_populates="room", cascade="all, delete-orphan"
     )
+    # Lines where this room is one of several on a booking.
+    booking_lines: Mapped[list["BookingRoom"]] = relationship(  # noqa: F821
+        "BookingRoom", back_populates="room", cascade="all"
+    )

@@ -13,7 +13,7 @@ import type { ComponentType } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { BookingStatusBadge } from "@/components/StatusBadge";
-import { formatCurrency, formatDate, initials, nightsBetween } from "@/utils/format";
+import { formatCurrency, formatDate, initials } from "@/utils/format";
 import { useOpenDocument } from "@/hooks/useBookings";
 import type { Booking } from "@/types";
 
@@ -28,15 +28,15 @@ export function BookingDetailsModal({ open, booking, onClose, onEdit }: BookingD
   const openDocument = useOpenDocument();
   if (!booking) return null;
 
-  const nights = nightsBetween(booking.check_in, booking.check_out);
-  const total = booking.total;
+  const nights = booking.nights;
+  const total = booking.grand_total;
 
   return (
     <Modal
       open={open}
       onClose={onClose}
       title="Booking Details"
-      description={`Reservation #${booking.id}`}
+      description={`Bill no. ${booking.id}`}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
@@ -62,10 +62,12 @@ export function BookingDetailsModal({ open, booking, onClose, onEdit }: BookingD
           <div className="min-w-0 flex-1">
             <h3 className="truncate text-lg font-semibold text-foreground">{booking.guest_name}</h3>
             <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-              <span className="inline-flex items-center gap-1.5">
-                <Mail className="size-3.5" />
-                {booking.email}
-              </span>
+              {booking.email && (
+                <span className="inline-flex items-center gap-1.5">
+                  <Mail className="size-3.5" />
+                  {booking.email}
+                </span>
+              )}
               <span className="inline-flex items-center gap-1.5">
                 <Phone className="size-3.5" />
                 {booking.phone}
@@ -77,19 +79,21 @@ export function BookingDetailsModal({ open, booking, onClose, onEdit }: BookingD
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <DetailRow icon={BedDouble} label="Room">
-            Room {booking.room.room_number} · {booking.room.room_name}
+            {booking.rooms.length > 1 ? "Rooms" : "Room"} {booking.room_numbers}
           </DetailRow>
           <DetailRow icon={Users} label="Guests">
-            {booking.guest_count} of {booking.room.capacity}
+            {booking.guest_count} of {booking.rooms.reduce((n, r) => n + r.capacity, 0)}
           </DetailRow>
           <DetailRow icon={CalendarDays} label="Check-in">
-            {formatDate(booking.check_in, "EEE, MMM d, yyyy")}
+            {formatDate(booking.check_in, "EEE, MMM d, yyyy")} · {booking.check_in_time}
           </DetailRow>
           <DetailRow icon={CalendarDays} label="Check-out">
-            {formatDate(booking.check_out, "EEE, MMM d, yyyy")}
+            {booking.check_out
+              ? `${formatDate(booking.check_out, "EEE, MMM d, yyyy")} · ${booking.check_out_time}`
+              : "Not checked out yet"}
           </DetailRow>
           <DetailRow icon={Moon} label="Nights">
-            {nights} {nights === 1 ? "night" : "nights"}
+            {nights} {nights === 1 ? "night" : "nights"}{booking.check_out ? "" : " so far"}
           </DetailRow>
           <DetailRow icon={Wallet} label="Total (incl. tax)">
             <span className="font-semibold text-foreground">{formatCurrency(total)}</span>

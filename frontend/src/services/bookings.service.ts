@@ -1,5 +1,5 @@
 import { api } from "./api";
-import type { Booking, BookingDocument, BookingInput } from "@/types";
+import type { Booking, BookingDocument, BookingInput, CheckoutInput } from "@/types";
 
 export const bookingsService = {
   list: async () => (await api.get<Booking[]>("/bookings")).data,
@@ -8,12 +8,17 @@ export const bookingsService = {
     (await api.post<Booking>("/bookings", payload)).data,
   update: async (id: number, payload: Partial<BookingInput>) =>
     (await api.put<Booking>(`/bookings/${id}`, payload)).data,
+  checkout: async (id: number, payload: CheckoutInput) =>
+    (await api.post<Booking>(`/bookings/${id}/checkout`, payload)).data,
   remove: async (id: number) => {
     await api.delete(`/bookings/${id}`);
   },
-  /** Fetch the tax-invoice PDF (auth header required, so not a plain link). */
+  /** Fetch the tax-invoice PDF for viewing (auth header required, so not a plain link). */
   invoice: async (id: number) =>
     (await api.get<Blob>(`/bookings/${id}/invoice`, { responseType: "blob" })).data,
+  /** Same PDF, but records that the bill was printed, which locks it against deletion. */
+  printInvoice: async (id: number) =>
+    (await api.post<Blob>(`/bookings/${id}/invoice/print`, null, { responseType: "blob" })).data,
   uploadDocuments: async (id: number, files: File[]) => {
     const form = new FormData();
     files.forEach((f) => form.append("files", f));

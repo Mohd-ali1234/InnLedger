@@ -1,7 +1,8 @@
-import { useRef, type ChangeEvent } from "react";
-import { Eye, FileText, Image as ImageIcon, Paperclip, X } from "lucide-react";
+import { useRef, useState, type ChangeEvent } from "react";
+import { Camera, Eye, FileText, Image as ImageIcon, Paperclip, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
+import { CameraCapture } from "@/components/bookings/CameraCapture";
 import type { BookingDocument } from "@/types";
 
 export const MAX_DOCUMENTS = 10;
@@ -35,6 +36,7 @@ export function DocumentsPicker({
   onView,
 }: DocumentsPickerProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
   const count = existing.length + pending.length;
 
   const handlePicked = (e: ChangeEvent<HTMLInputElement>) => {
@@ -58,18 +60,33 @@ export function DocumentsPicker({
   };
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="text-sm font-medium text-foreground">ID documents</p>
-          <p className="text-xs text-muted-foreground">
-            Optional. Images or PDFs, up to 10 MB each — add as many IDs as you need.
-          </p>
+    <div className="space-y-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          ID documents
+        </h3>
+        <div className="flex shrink-0 gap-1.5">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={count >= MAX_DOCUMENTS}
+            onClick={() => setCameraOpen(true)}
+          >
+            <Camera />
+            Take photo
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            title="Images or PDF, up to 10 MB each"
+            onClick={() => inputRef.current?.click()}
+          >
+            <Paperclip />
+            Add files
+          </Button>
         </div>
-        <Button type="button" variant="secondary" size="sm" onClick={() => inputRef.current?.click()}>
-          <Paperclip />
-          Add documents
-        </Button>
         <input
           ref={inputRef}
           type="file"
@@ -79,9 +96,17 @@ export function DocumentsPicker({
           onChange={handlePicked}
         />
       </div>
+      {count === 0 && (
+        <p className="text-xs text-muted-foreground">Optional · images or PDF, up to 10 MB each.</p>
+      )}
+      <CameraCapture
+        open={cameraOpen}
+        onClose={() => setCameraOpen(false)}
+        onCapture={(file) => onAdd([file])}
+      />
 
       {count > 0 && (
-        <ul className="space-y-2">
+        <ul className="max-h-28 space-y-1.5 overflow-y-auto">
           {existing.map((d) => (
             <DocRow
               key={`e${d.id}`}
@@ -125,7 +150,7 @@ function DocRow({
 }) {
   const Icon = type === "application/pdf" ? FileText : ImageIcon;
   return (
-    <li className="flex items-center gap-3 rounded-lg border border-border bg-slate-50/60 px-3 py-2">
+    <li className="flex items-center gap-3 rounded-lg border border-border bg-slate-50/60 px-3 py-1.5">
       <Icon className="size-4 shrink-0 text-muted-foreground" />
       <span className="min-w-0 flex-1 truncate text-sm text-foreground">{name}</span>
       <span className="shrink-0 text-xs text-muted-foreground">

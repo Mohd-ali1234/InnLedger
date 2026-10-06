@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.models.enums import BookingStatus, RoomStatus
 from app.models.booking import Booking
+from app.models.booking_room import BookingRoom
 from app.models.room import Room
 from app.schemas.room import RoomCreate, RoomUpdate
 
@@ -57,8 +58,9 @@ def delete_room(db: Session, room_id: int) -> None:
     room = get_room(db, room_id)
     active = (
         db.query(Booking)
+        .join(BookingRoom, BookingRoom.booking_id == Booking.id)
         .filter(
-            Booking.room_id == room_id,
+            BookingRoom.room_id == room_id,
             Booking.status.in_([BookingStatus.confirmed, BookingStatus.checked_in]),
         )
         .first()
@@ -67,6 +69,17 @@ def delete_room(db: Session, room_id: int) -> None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Cannot delete a room with active bookings",
+        )
+    invoiced = (
+        db.query(Booking)
+        .join(BookingRoom, BookingRoom.booking_id == Booking.id)
+        .filter(BookingRoom.room_id == room_id, Booking.invoice_printed_at.isnot(None))
+        .first()
+    )
+    if invoiced is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot delete a room that has printed bills",
         )
     db.delete(room)
     db.commit()
